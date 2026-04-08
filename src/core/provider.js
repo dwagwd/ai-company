@@ -14,9 +14,27 @@ function isObject(value) {
   return value != null && typeof value === 'object' && !Array.isArray(value);
 }
 
+function hasOwn(object, key) {
+  return Object.prototype.hasOwnProperty.call(object, key);
+}
+
 function unwrapProviderPayload(parsed, kind) {
   if (!isObject(parsed)) {
     return null;
+  }
+
+  if (hasOwn(parsed, 'fallback') && parsed.fallback === true) {
+    const reason = typeof parsed.reason === 'string' && parsed.reason.trim()
+      ? `: ${parsed.reason.trim()}`
+      : '';
+    throw new Error(`Command provider returned a fallback response for ${kind}${reason}`);
+  }
+
+  if (hasOwn(parsed, 'ok') && parsed.ok === false) {
+    const reason = typeof parsed.reason === 'string' && parsed.reason.trim()
+      ? `: ${parsed.reason.trim()}`
+      : '';
+    throw new Error(`Command provider reported a failed execution for ${kind}${reason}`);
   }
 
   if (isObject(parsed.result)) {

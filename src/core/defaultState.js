@@ -1,5 +1,14 @@
 import { randomUUID } from 'node:crypto';
 import { AVAILABLE_LOCALES, DEFAULT_LOCALE } from './localeConfig.js';
+import {
+  COMPANY_AGENTS,
+  COMPANY_DEPARTMENTS,
+  DEFAULT_AGENT_ID,
+  DEFAULT_DEPARTMENT_ID,
+  getCompanyAgent,
+  getCompanyDepartment,
+  inferCompanyAssignment,
+} from '../shared/companyCatalog.js';
 
 export const SCHEMA_VERSION = 2;
 
@@ -34,6 +43,9 @@ export const DEFAULT_SETTINGS = {
   maxRetries: 2,
 };
 
+export const DEFAULT_AGENTS = COMPANY_AGENTS;
+export const DEFAULT_DEPARTMENTS = COMPANY_DEPARTMENTS;
+
 export const DEFAULT_SYSTEM = {
   startedAt: null,
   lastTickAt: null,
@@ -47,6 +59,7 @@ export const DEFAULT_WORKSPACE = {
   name: 'Workspace 1',
   path: DEFAULT_WORKSPACE_PATH,
   description: 'Starter workspace with no path configured yet.',
+  leadAgentId: DEFAULT_AGENT_ID,
   providerMode: 'scripted',
   providerCommand: '',
   providerTimeoutMs: DEFAULT_SETTINGS.providerTimeoutMs,
@@ -64,6 +77,8 @@ export const DEFAULT_WORKSPACE_TASK_TEMPLATE = {
   scope: 'workspace',
   kind: 'maintenance',
   priority: 5,
+  ownerAgentId: DEFAULT_WORKSPACE.leadAgentId,
+  departmentId: DEFAULT_DEPARTMENT_ID,
   providerMode: 'scripted',
   providerCommand: '',
   runnerMode: 'simulated',
@@ -84,6 +99,7 @@ export function createWorkspaceRecord(input = {}, settings = DEFAULT_SETTINGS) {
     name: source.name ?? 'New workspace',
     path: workspacePath,
     description: source.description ?? '',
+    leadAgentId: source.leadAgentId ?? settings.leadAgentId ?? DEFAULT_WORKSPACE.leadAgentId,
     providerMode: source.providerMode ?? settings.providerMode ?? DEFAULT_WORKSPACE.providerMode,
     providerCommand: source.providerCommand ?? settings.providerCommand ?? DEFAULT_WORKSPACE.providerCommand,
     providerTimeoutMs: source.providerTimeoutMs ?? settings.providerTimeoutMs ?? DEFAULT_SETTINGS.providerTimeoutMs,
@@ -109,6 +125,8 @@ export function createWorkspaceTemplateRecord(workspace = DEFAULT_WORKSPACE, inp
     scope: source.scope ?? 'workspace',
     kind: source.kind ?? 'maintenance',
     priority: source.priority ?? 5,
+    ownerAgentId: source.ownerAgentId ?? workspace.leadAgentId ?? DEFAULT_WORKSPACE_TASK_TEMPLATE.ownerAgentId,
+    departmentId: source.departmentId ?? DEFAULT_WORKSPACE_TASK_TEMPLATE.departmentId,
     providerMode: source.providerMode ?? workspace.providerMode ?? DEFAULT_WORKSPACE_TASK_TEMPLATE.providerMode,
     providerCommand: source.providerCommand ?? workspace.providerCommand ?? DEFAULT_WORKSPACE_TASK_TEMPLATE.providerCommand,
     providerTimeoutMs: source.providerTimeoutMs ?? workspace.providerTimeoutMs ?? DEFAULT_SETTINGS.providerTimeoutMs,
@@ -137,6 +155,8 @@ export function createDefaultState() {
   const now = nowIso();
   const workspace = createWorkspaceRecord(DEFAULT_WORKSPACE, DEFAULT_SETTINGS);
   const taskTemplate = createWorkspaceTemplateRecord(workspace, DEFAULT_WORKSPACE_TASK_TEMPLATE);
+  const agents = COMPANY_AGENTS.map((agent) => normalizeAgent(agent));
+  const departments = COMPANY_DEPARTMENTS.map((department) => normalizeDepartment(department));
   return {
     schemaVersion: SCHEMA_VERSION,
     system: {
@@ -159,6 +179,8 @@ export function createDefaultState() {
     approvals: [],
     logs: [],
     memory: [],
+    agents,
+    departments,
     workspaces: [workspace],
     taskTemplates: [taskTemplate],
   };
@@ -237,6 +259,8 @@ export function normalizeTask(task = {}) {
     objective: normalizeString(source.objective, ''),
     scope: ['workspace', 'orchestrator'].includes(source.scope) ? source.scope : 'workspace',
     workspacePath: normalizeString(source.workspacePath, ''),
+    ownerAgentId: normalizeString(source.ownerAgentId, ''),
+    departmentId: normalizeString(source.departmentId, ''),
     providerMode: ['scripted', 'command'].includes(source.providerMode)
       ? source.providerMode
       : DEFAULT_SETTINGS.providerMode,
@@ -358,11 +382,15 @@ export function normalizeMemory(entry = {}) {
 
 export function normalizeWorkspace(workspace = {}) {
   const source = workspace ?? {};
+  const leadAgentId = COMPANY_AGENTS.some((agent) => agent.id === source.leadAgentId)
+    ? source.leadAgentId
+    : DEFAULT_WORKSPACE.leadAgentId;
   return {
     id: normalizeString(source.id, DEFAULT_WORKSPACE.id),
     name: normalizeString(source.name, DEFAULT_WORKSPACE.name),
     path: normalizeString(source.path, DEFAULT_WORKSPACE.path),
     description: normalizeString(source.description, DEFAULT_WORKSPACE.description),
+    leadAgentId,
     providerMode: ['scripted', 'command'].includes(source.providerMode)
       ? source.providerMode
       : DEFAULT_WORKSPACE.providerMode,
@@ -388,6 +416,12 @@ export function normalizeWorkspace(workspace = {}) {
 
 export function normalizeTaskTemplate(template = {}) {
   const source = template ?? {};
+  const ownerAgentId = COMPANY_AGENTS.some((agent) => agent.id === source.ownerAgentId)
+    ? source.ownerAgentId
+    : DEFAULT_WORKSPACE_TASK_TEMPLATE.ownerAgentId;
+  const departmentId = COMPANY_DEPARTMENTS.some((department) => department.id === source.departmentId)
+    ? source.departmentId
+    : DEFAULT_WORKSPACE_TASK_TEMPLATE.departmentId;
   return {
     id: normalizeString(source.id, DEFAULT_WORKSPACE_TASK_TEMPLATE.id),
     workspaceId: normalizeString(source.workspaceId, DEFAULT_WORKSPACE_TASK_TEMPLATE.workspaceId),
@@ -399,6 +433,8 @@ export function normalizeTaskTemplate(template = {}) {
       : DEFAULT_WORKSPACE_TASK_TEMPLATE.scope,
     kind: normalizeString(source.kind, DEFAULT_WORKSPACE_TASK_TEMPLATE.kind),
     priority: normalizeNumber(source.priority, DEFAULT_WORKSPACE_TASK_TEMPLATE.priority, 1),
+    ownerAgentId,
+    departmentId,
     providerMode: ['scripted', 'command'].includes(source.providerMode)
       ? source.providerMode
       : DEFAULT_WORKSPACE_TASK_TEMPLATE.providerMode,
@@ -425,6 +461,10 @@ export function normalizeTaskTemplate(template = {}) {
 
 export function normalizeState(rawState = {}) {
   const source = rawState ?? {};
+  const agents = normalizeArray(source.agents).map((agent) => normalizeAgent(agent));
+  const normalizedAgents = agents.length > 0 ? agents : COMPANY_AGENTS.map((agent) => normalizeAgent(agent));
+  const departments = normalizeArray(source.departments).map((department) => normalizeDepartment(department));
+  const normalizedDepartments = departments.length > 0 ? departments : COMPANY_DEPARTMENTS.map((department) => normalizeDepartment(department));
   const workspaces = normalizeArray(source.workspaces).map((workspace) => normalizeWorkspace(workspace));
   const normalizedWorkspaces = workspaces.length > 0 ? workspaces : [createWorkspaceRecord(DEFAULT_WORKSPACE)];
   const taskTemplates = normalizeArray(source.taskTemplates).map((template) => normalizeTaskTemplate(template));
@@ -439,6 +479,12 @@ export function normalizeState(rawState = {}) {
     }
 
     template.workspacePath = workspace.path;
+    if (!COMPANY_AGENTS.some((agent) => agent.id === template.ownerAgentId)) {
+      template.ownerAgentId = workspace.leadAgentId ?? DEFAULT_WORKSPACE.leadAgentId;
+    }
+    if (!COMPANY_DEPARTMENTS.some((department) => department.id === template.departmentId)) {
+      template.departmentId = DEFAULT_WORKSPACE_TASK_TEMPLATE.departmentId;
+    }
   }
 
   const normalizedSettings = normalizeSettings(source.settings);
@@ -457,14 +503,32 @@ export function normalizeState(rawState = {}) {
     normalizedSettings.runnerTimeoutMs = activeWorkspace.runnerTimeoutMs;
   }
 
+  const tasks = normalizeArray(source.tasks).map((task) => normalizeTask(task));
+  const taskMap = new Map(tasks.map((task) => [task.id, task]));
+  for (const task of tasks) {
+    const sourceTask = task.sourceTaskId ? taskMap.get(task.sourceTaskId) ?? null : null;
+    const assignment = inferCompanyAssignment(task, {
+      sourceTask,
+      leadAgentId: activeWorkspace?.leadAgentId ?? DEFAULT_WORKSPACE.leadAgentId,
+    });
+    task.ownerAgentId = COMPANY_AGENTS.some((agent) => agent.id === task.ownerAgentId)
+      ? task.ownerAgentId
+      : assignment.ownerAgentId;
+    task.departmentId = COMPANY_DEPARTMENTS.some((department) => department.id === task.departmentId)
+      ? task.departmentId
+      : assignment.departmentId;
+  }
+
   const state = {
     schemaVersion: SCHEMA_VERSION,
     system: normalizeSystem(source.system),
     settings: normalizedSettings,
-    tasks: normalizeArray(source.tasks).map((task) => normalizeTask(task)),
+    tasks,
     approvals: normalizeArray(source.approvals).map((approval) => normalizeApproval(approval)),
     logs: normalizeArray(source.logs).map((log) => normalizeLog(log)),
     memory: normalizeArray(source.memory).map((entry) => normalizeMemory(entry)),
+    agents: normalizedAgents,
+    departments: normalizedDepartments,
     workspaces: normalizedWorkspaces,
     taskTemplates: taskTemplates,
   };
@@ -486,6 +550,8 @@ export function createTaskRecord(input = {}, settings = DEFAULT_SETTINGS, fallba
     objective: source.objective ?? '',
     scope: source.scope ?? 'workspace',
     workspacePath,
+    ownerAgentId: source.ownerAgentId ?? null,
+    departmentId: source.departmentId ?? null,
     providerMode: source.providerMode ?? settings.providerMode ?? DEFAULT_SETTINGS.providerMode,
     providerCommand: source.providerCommand ?? settings.providerCommand ?? '',
     providerTimeoutMs: source.providerTimeoutMs ?? settings.providerTimeoutMs ?? DEFAULT_SETTINGS.providerTimeoutMs,
@@ -568,4 +634,38 @@ export function createApprovalRecord({
     requestedAt: nowIso(),
     resolvedAt: null,
   });
+}
+
+export function normalizeAgent(agent = {}) {
+  const source = agent ?? {};
+  const defaultAgent = getCompanyAgent(source.id ?? DEFAULT_AGENT_ID);
+  return {
+    id: normalizeString(source.id, defaultAgent.id),
+    name: normalizeString(source.name, defaultAgent.name),
+    title: normalizeString(source.title, defaultAgent.title),
+    departmentId: COMPANY_DEPARTMENTS.some((department) => department.id === source.departmentId)
+      ? source.departmentId
+      : defaultAgent.departmentId,
+    avatar: normalizeString(source.avatar, defaultAgent.avatar),
+    rank: normalizeNumber(source.rank, defaultAgent.rank, 1),
+    rankLabel: normalizeString(source.rankLabel, defaultAgent.rankLabel),
+    specialty: normalizeString(source.specialty, defaultAgent.specialty),
+    defaultFocus: normalizeString(source.defaultFocus, defaultAgent.defaultFocus),
+    accent: normalizeString(source.accent, defaultAgent.accent),
+    createdAt: normalizeString(source.createdAt, nowIso()),
+    updatedAt: normalizeString(source.updatedAt, nowIso()),
+  };
+}
+
+export function normalizeDepartment(department = {}) {
+  const source = department ?? {};
+  const defaultDepartment = getCompanyDepartment(source.id ?? DEFAULT_DEPARTMENT_ID);
+  return {
+    id: normalizeString(source.id, defaultDepartment.id),
+    name: normalizeString(source.name, defaultDepartment.name),
+    description: normalizeString(source.description, defaultDepartment.description),
+    accent: normalizeString(source.accent, defaultDepartment.accent),
+    createdAt: normalizeString(source.createdAt, nowIso()),
+    updatedAt: normalizeString(source.updatedAt, nowIso()),
+  };
 }

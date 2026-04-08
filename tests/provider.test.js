@@ -80,6 +80,52 @@ describe('command provider', () => {
     expect(review.notes).toBe('Looks good');
   });
 
+  it('rejects codex fallback envelopes instead of treating them as success', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'ai-operator-provider-'));
+    const scriptPath = path.join(dir, 'fallback-provider.mjs');
+
+    await writeFile(
+      scriptPath,
+      [
+        "const kind = process.env.AI_OPERATOR_KIND;",
+        "process.stdout.write(JSON.stringify({",
+        "  provider: 'codex',",
+        '  kind,',
+        '  ok: false,',
+        '  fallback: true,',
+        "  reason: 'Codex binary not found',",
+        '  result: {',
+        "    summary: 'Fallback plan',",
+        "    workerPrompt: 'Worker prompt',",
+        "    reviewPrompt: 'Reviewer prompt',",
+        "    steps: [",
+        "      { title: 'Inspect workspace', role: 'worker', kind: 'analysis', permission: 'read', note: 'Review the workspace' },",
+        "      { title: 'Make change', role: 'worker', kind: 'execute', permission: 'write', note: 'Implement one fix' },",
+        "      { title: 'Review result', role: 'reviewer', kind: 'review', permission: 'read', note: 'Verify the output' }",
+        '    ]',
+        '  }',
+        '}));',
+      ].join('\n'),
+    );
+
+    const provider = createProvider({
+      providerMode: 'command',
+      providerCommand: `node ${JSON.stringify(scriptPath)}`,
+      workspacePath: dir,
+    });
+
+    await expect(provider.plan({
+      task: {
+        title: 'Task',
+        objective: 'Objective',
+        scope: 'workspace',
+        kind: 'custom',
+        priority: 3,
+      },
+      memory: [],
+    })).rejects.toThrow(/fallback response/i);
+  });
+
   it('requires a command when command mode is selected', async () => {
     const dir = await mkdtemp(path.join(tmpdir(), 'ai-operator-provider-'));
     const provider = createProvider({

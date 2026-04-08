@@ -45,6 +45,8 @@ describe('operator orchestrator', () => {
     const snapshot = store.snapshot();
     expect(snapshot.tasks[0].status).toBe('completed');
     expect(snapshot.tasks[0].review).toBeTruthy();
+    expect(snapshot.tasks[0].ownerAgentId).toBe('forge');
+    expect(snapshot.tasks[0].departmentId).toBe('production');
     expect(snapshot.logs.length).toBeGreaterThan(0);
   });
 
@@ -73,6 +75,8 @@ describe('operator orchestrator', () => {
     let snapshot = store.snapshot();
     const task = snapshot.tasks[0];
     expect(task.status).toBe('waiting-approval');
+    expect(task.ownerAgentId).toBe('astra');
+    expect(task.departmentId).toBe('command');
     expect(snapshot.approvals[0].decision).toBe('pending');
 
     await orchestrator.approveTask(task.id, task.pendingApprovalId);
@@ -93,13 +97,18 @@ describe('operator orchestrator', () => {
     expect(snapshot.settings.activeWorkspaceId).toBe(firstWorkspace.id);
     expect(firstWorkspace.name).toBe('Workspace 1');
     expect(firstWorkspace.path).toBe('');
+    expect(firstWorkspace.leadAgentId).toBe('astra');
     expect(firstTemplate.workspacePath).toBe('');
     expect(firstTemplate.title).toBe('Bootstrap the workspace');
+    expect(firstTemplate.ownerAgentId).toBe('astra');
+    expect(firstTemplate.departmentId).toBe('command');
     expect(firstTemplate.providerMode).toBe('scripted');
     expect(firstTemplate.providerCommand).toBe('');
     expect(firstTemplate.runnerMode).toBe('simulated');
     expect(firstTemplate.runnerCommand).toBe('');
     expect(firstTask.title).toBe(firstTemplate.title);
+    expect(firstTask.ownerAgentId).toBe('astra');
+    expect(firstTask.departmentId).toBe('command');
     expect(firstTask.providerMode).toBe('scripted');
     expect(firstTask.providerCommand).toBe('');
     expect(firstTask.runnerMode).toBe('simulated');
@@ -214,6 +223,8 @@ describe('operator orchestrator', () => {
     orchestrator.updateWorkspaceTemplate(template.id, {
       title: 'Docs bootstrap',
       objective: 'Use the Codex app wrapper against the docs workspace and verify the path.',
+      ownerAgentId: 'mira',
+      departmentId: 'planning',
       runnerCommand: 'pnpm test docs',
       providerTimeoutMs: 45_000,
     });
@@ -225,6 +236,8 @@ describe('operator orchestrator', () => {
     expect(seededTemplate.title).toBe('Docs bootstrap');
     expect(seededTask.title).toBe('Docs bootstrap');
     expect(seededTask.objective).toContain('docs workspace');
+    expect(seededTask.ownerAgentId).toBe('mira');
+    expect(seededTask.departmentId).toBe('planning');
     expect(seededTask.runnerCommand).toBe('pnpm test docs');
     expect(seededTask.providerTimeoutMs).toBe(45_000);
     expect(snapshot.settings.workspacePath).toBe('/tmp/docs-workspace');

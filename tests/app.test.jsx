@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { cleanup, render, screen } from '@testing-library/react';
 import { OperatorApp } from '../src/renderer/App.jsx';
 
 const now = '2026-04-07T05:00:00.000Z';
@@ -45,6 +45,7 @@ function createSnapshot() {
         name: 'Workspace 1',
         path: '',
         description: 'Starter workspace with no path configured yet.',
+        leadAgentId: 'astra',
         providerMode: 'scripted',
         providerCommand: '',
         providerTimeoutMs: 120_000,
@@ -59,6 +60,7 @@ function createSnapshot() {
         name: 'Docs Workspace',
         path: '/tmp/docs',
         description: 'Documentation and content checks.',
+        leadAgentId: 'astra',
         providerMode: 'command',
         providerCommand: 'node "./scripts/codex-provider.mjs"',
         providerTimeoutMs: 120_000,
@@ -79,6 +81,8 @@ function createSnapshot() {
         scope: 'workspace',
         kind: 'maintenance',
         priority: 5,
+        ownerAgentId: 'astra',
+        departmentId: 'command',
         providerMode: 'scripted',
         providerCommand: '',
         providerTimeoutMs: 120_000,
@@ -144,9 +148,9 @@ function createSnapshot() {
         plan: {
           summary: 'Inspect the workspace and report back.',
           workerPrompt: 'Worker prompt',
-          reviewPrompt: 'Reviewer prompt',
-        },
-        steps: [
+        reviewPrompt: 'Reviewer prompt',
+      },
+      steps: [
           {
             id: 'step-1',
             title: 'Review context',
@@ -165,6 +169,105 @@ function createSnapshot() {
     approvals: [],
     logs: [],
     memory: [],
+    agents: [
+      {
+        id: 'astra',
+        name: 'Astra',
+        title: 'Lead Operator',
+        departmentId: 'command',
+        specialty: 'Owns the big goal and keeps every team aligned.',
+        defaultFocus: 'Turn the workspace brief into a single mission.',
+        accent: 'cyan',
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        id: 'mira',
+        name: 'Mira',
+        title: 'Planning Director',
+        departmentId: 'planning',
+        specialty: 'Breaks a goal into clear subgoals and checkpoints.',
+        defaultFocus: 'Translate the brief into a workable plan.',
+        accent: 'gold',
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        id: 'forge',
+        name: 'Forge',
+        title: 'Production Lead',
+        departmentId: 'production',
+        specialty: 'Turns the mission into shipped work.',
+        defaultFocus: 'Keep the build lane moving.',
+        accent: 'green',
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        id: 'quill',
+        name: 'Quill',
+        title: 'Acceptance Lead',
+        departmentId: 'acceptance',
+        specialty: 'Verifies results and signs off releases.',
+        defaultFocus: 'Check the result against acceptance criteria.',
+        accent: 'amber',
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        id: 'pulse',
+        name: 'Pulse',
+        title: 'Operations Manager',
+        departmentId: 'operations',
+        specialty: 'Keeps the system healthy, recovers failures, and watches retries.',
+        defaultFocus: 'Protect the loop from stalls and regressions.',
+        accent: 'violet',
+        createdAt: now,
+        updatedAt: now,
+      },
+    ],
+    departments: [
+      {
+        id: 'command',
+        name: 'Command',
+        description: 'Keeps the company goal aligned and visible.',
+        accent: 'cyan',
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        id: 'planning',
+        name: 'Planning',
+        description: 'Turns a goal into a mission plan and checkpoints.',
+        accent: 'gold',
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        id: 'production',
+        name: 'Production',
+        description: 'Builds the work order and keeps momentum moving.',
+        accent: 'green',
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        id: 'acceptance',
+        name: 'Acceptance',
+        description: 'Checks quality and decides whether the mission is ready.',
+        accent: 'amber',
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        id: 'operations',
+        name: 'Operations',
+        description: 'Protects the loop, handles retries, and watches health.',
+        accent: 'violet',
+        createdAt: now,
+        updatedAt: now,
+      },
+    ],
   };
 }
 
@@ -197,18 +300,24 @@ describe('renderer app', () => {
   });
 
   afterEach(() => {
+    cleanup();
     vi.clearAllMocks();
   });
 
   it('renders the bilingual control surface with task data', async () => {
     render(<OperatorApp api={operator} />);
-    await screen.findByRole('heading', { name: 'Task Intake' });
-    expect(screen.getByText('Workspaces')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Seed workspace template' })).toBeInTheDocument();
-    expect(screen.getByText('Workspace 1', { selector: '.workspace-picker-head strong' })).toBeInTheDocument();
-    expect(screen.getByText('Docs Workspace')).toBeInTheDocument();
-    expect(screen.getByText('Inspect repo', { selector: 'strong' })).toBeInTheDocument();
-    expect(screen.getByText('Task Template')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Approval Queue' })).toBeInTheDocument();
+    await screen.findByRole('heading', { name: 'Mission Pipeline' });
+    expect(screen.getByRole('heading', { name: 'Staff Roster' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Completed Missions' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Review Desk' })).toBeInTheDocument();
+    expect(screen.getByText('Astra', { selector: '.agent-card .agent-name' })).toBeInTheDocument();
+    expect(screen.getByText('Mira', { selector: '.agent-card .agent-name' })).toBeInTheDocument();
+    expect(screen.getAllByText('Rank 5', { selector: '.rank-chip' }).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText('Inspect repo', { selector: '.pipeline-lane .mission-card .mission-head-copy strong' })).toBeInTheDocument();
+    expect(screen.getByText('Current goal', { selector: '.hero-goal > span' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Plan' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Archive' })).toBeInTheDocument();
+    expect(screen.queryByText('Worker prompt')).not.toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Open management' }).length).toBeGreaterThanOrEqual(1);
   });
 });

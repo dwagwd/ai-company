@@ -17,6 +17,8 @@ describe('persistent store', () => {
 
     expect(snapshot.workspaces[0].name).toBe('Workspace 1');
     expect(snapshot.workspaces[0].path).toBe('');
+    expect(snapshot.agents.map((agent) => agent.id)).toContain('astra');
+    expect(snapshot.departments.map((department) => department.id)).toContain('command');
     expect(snapshot.settings.activeWorkspaceId).toBe(snapshot.workspaces[0].id);
     expect(snapshot.logs[0].level).toBe('warn');
     expect(snapshot.logs[0].message).toContain('Recovered a corrupt state file');

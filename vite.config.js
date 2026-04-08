@@ -9,7 +9,8 @@ export default defineConfig({
     emptyOutDir: true,
   },
   test: {
-    environment: 'jsdom',
+    environment: 'happy-dom',
+    pool: 'vmThreads',
     globals: true,
     setupFiles: ['./tests/setup.js'],
     include: ['tests/**/*.{test,spec}.{js,jsx}'],

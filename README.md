@@ -47,7 +47,7 @@ The default behavior is intentionally safe and self-contained:
 
 - `providerMode = scripted` generates a built-in worker/reviewer plan
 - `runnerMode = simulated` gives the system a working local loop without external tools
-- `providerMode = command` requires an explicit workspace path and lets you plug in a CLI wrapper such as `node scripts/codex-provider.mjs`; the wrapper calls the local Codex binary when available and falls back to the built-in plan/review heuristics when it is not
+- `providerMode = command` requires an explicit workspace path and lets you plug in a JSON wrapper such as `node scripts/codex-provider.mjs`; the app treats fallback envelopes as failures, so you can tell when Codex did not actually run
 - `runnerMode = shell` requires an explicit workspace path and runs a real shell command for each step
 - The starter workspace is neutral and starts without a path, and the Settings panel lets you switch workspaces, import another folder, and edit the task template without touching code
 - Set `AI_OPERATOR_CODEX_BINARY` if you want the provider wrapper to target a specific Codex binary; otherwise it uses `codex` from `PATH`

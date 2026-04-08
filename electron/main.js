@@ -69,8 +69,9 @@ app.on('activate', async () => {
 
 app.whenReady().then(async () => {
   app.setName('Local AI Operator');
-  const dataDir = join(app.getPath('userData'), 'local-ai-operator');
-  storePath = join(dataDir, 'state.json');
+  storePath = process.env.AI_OPERATOR_STATE_PATH
+    ? process.env.AI_OPERATOR_STATE_PATH
+    : join(app.getPath('userData'), 'local-ai-operator', 'state.json');
   store = new PersistentStore(storePath);
   orchestrator = new OperatorOrchestrator(store);
   store.on('error', (error) => {
